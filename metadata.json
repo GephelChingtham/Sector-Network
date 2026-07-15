@@ -1,0 +1,6 @@
+{
+  "name": "SECTOR NETWORK",
+  "description": "An exclusive, high-contrast minimalist landing page for the SECTOR NETWORK school Call of Duty: Mobile (CODM) group.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
