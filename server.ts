@@ -23,17 +23,41 @@ interface Profile {
 }
 
 const DB_FILE = path.join(process.cwd(), "profiles_db.json");
+const DELETED_FILE = path.join(process.cwd(), "deleted_profiles.json");
+
+function getDeletedProfiles(): string[] {
+  if (fs.existsSync(DELETED_FILE)) {
+    try {
+      return JSON.parse(fs.readFileSync(DELETED_FILE, "utf-8"));
+    } catch (e) {
+      return [];
+    }
+  }
+  return [];
+}
+
+function addDeletedProfile(instagram: string) {
+  const list = getDeletedProfiles();
+  const normalized = instagram.trim().toLowerCase();
+  if (!list.includes(normalized)) {
+    list.push(normalized);
+    fs.writeFileSync(DELETED_FILE, JSON.stringify(list, null, 2), "utf-8");
+  }
+}
 
 // Helper to load profiles
 function loadDB(): Profile[] {
+  const deletedList = getDeletedProfiles();
+  let db: Profile[] = [];
   if (fs.existsSync(DB_FILE)) {
     try {
-      return JSON.parse(fs.readFileSync(DB_FILE, "utf-8"));
+      db = JSON.parse(fs.readFileSync(DB_FILE, "utf-8"));
     } catch (e) {
       console.error("Error reading database file, using mock data", e);
     }
   }
-  // Initialize with seed data containing hashed PINs
+
+  if (db.length === 0 && !fs.existsSync(DB_FILE)) {
   const seed: Profile[] = [
     {
       instagram: '@sct_alpha',
@@ -49,6 +73,62 @@ function loadDB(): Profile[] {
         { action: 'Logged into admin panel', timestamp: '2026-07-13T01:30:00Z' },
         { action: 'Updated tier status to Tier 4', timestamp: '2026-07-12T18:15:00Z' },
         { action: 'Registered under TNA school roster', timestamp: '2026-07-10T12:00:00Z' }
+      ]
+    },
+    {
+      instagram: '@cgphl',
+      codmName: 'GEPHS',
+      tierId: 'tier400',
+      registeredAt: '2026-07-15T00:00:00Z',
+      profileViews: 521,
+      securityPin: bcrypt.hashSync('Zayden@08', 10),
+      school: 'TNA',
+      role: 'admin',
+      status: 'active',
+      recentActivity: [
+        { action: 'Founder profile activated with Free Tier 4 privileges', timestamp: '2026-07-15T00:00:00Z' }
+      ]
+    },
+    {
+      instagram: '@jiji.gtk',
+      codmName: 'JIJI',
+      tierId: 'tier400',
+      registeredAt: '2026-07-15T00:00:00Z',
+      profileViews: 412,
+      securityPin: bcrypt.hashSync('SECTORPASS', 10),
+      school: 'TNA',
+      role: 'admin',
+      status: 'active',
+      recentActivity: [
+        { action: 'Founder profile activated with Free Tier 4 privileges', timestamp: '2026-07-15T00:00:00Z' }
+      ]
+    },
+    {
+      instagram: '@juino.57',
+      codmName: 'ANANDITA',
+      tierId: 'tier400',
+      registeredAt: '2026-07-15T00:00:00Z',
+      profileViews: 318,
+      securityPin: bcrypt.hashSync('ilovekairi@125', 10),
+      school: 'GD Goenka',
+      role: 'admin',
+      status: 'active',
+      recentActivity: [
+        { action: 'Founder profile activated with Free Tier 4 privileges', timestamp: '2026-07-15T00:00:00Z' }
+      ]
+    },
+    {
+      instagram: '@nedupla._.a',
+      codmName: 'NEDUPLA',
+      tierId: 'tier400',
+      registeredAt: '2026-07-15T00:00:00Z',
+      profileViews: 289,
+      securityPin: bcrypt.hashSync('Cyberpunk', 10),
+      school: 'GD Goenka',
+      role: 'admin',
+      status: 'active',
+      recentActivity: [
+        { action: 'Founder profile activated with Free Tier 4 privileges', timestamp: '2026-07-15T00:00:00Z' }
       ]
     },
     {
@@ -97,8 +177,17 @@ function loadDB(): Profile[] {
       ]
     }
   ];
-  saveDB(seed);
-  return seed;
+    const filteredSeed = seed.filter(p => !deletedList.includes(p.instagram.toLowerCase()));
+    db = filteredSeed;
+    saveDB(db);
+  }
+
+  const finalFiltered = db.filter(p => !deletedList.includes(p.instagram.toLowerCase()));
+  if (finalFiltered.length !== db.length) {
+    saveDB(finalFiltered);
+    db = finalFiltered;
+  }
+  return db;
 }
 
 // Helper to save profiles
@@ -288,8 +377,8 @@ async function startServer() {
       profileViews: tierId === 'tier300' || tierId === 'tier400' ? Math.floor(Math.random() * 20) + 5 : 0,
       securityPin: hashedPin,
       school,
-      role: 'user',
-      status: 'pending',
+      role: isFree ? 'admin' : 'user',
+      status: isFree ? 'active' : 'pending',
       utrNumber: utrNumber ? utrNumber.trim() : undefined,
       screenshot: screenshot || undefined,
       recentActivity: [
@@ -302,7 +391,7 @@ async function startServer() {
 
     // Create session on successful registration
     const token = crypto.randomBytes(24).toString("hex");
-    sessions.set(token, { instagram: newProfile.instagram, role: 'user' });
+    sessions.set(token, { instagram: newProfile.instagram, role: isFree ? 'admin' : 'user' });
 
     return res.json({ success: true, token, profile: sanitizeProfile(newProfile) });
   });
@@ -345,6 +434,7 @@ async function startServer() {
 
     db.splice(index, 1);
     saveDB(db);
+    addDeletedProfile(user.instagram);
 
     // Invalidate sessions
     for (const [token, sess] of sessions.entries()) {
@@ -604,6 +694,7 @@ async function startServer() {
     switch (action) {
       case 'delete':
         db.splice(targetIdx, 1);
+        addDeletedProfile(targetInstagram);
         break;
 
       case 'toggle-sale':
@@ -659,6 +750,22 @@ async function startServer() {
           timestamp: actionTime
         });
         break;
+
+      case 'reduce-warnings': {
+        const curr = target.warnings || 0;
+        if (curr > 0) {
+          target.warnings = curr - 1;
+        }
+        if (target.warnings < 3 && target.status === 'banned') {
+          target.status = 'active';
+        }
+        target.recentActivity = target.recentActivity || [];
+        target.recentActivity.unshift({
+          action: `Reduced warnings / forgave ban (${target.warnings}/3 warnings remaining)`,
+          timestamp: actionTime
+        });
+        break;
+      }
 
       case 'toggle-role':
         target.role = target.role === 'admin' ? 'user' : 'admin';

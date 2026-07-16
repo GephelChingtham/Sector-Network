@@ -65,13 +65,6 @@ export default function Directory({
                 OUR ADMINS WILL CHECK AND GET BACK TO YOU AS SOON AS POSSIBLE.
               </p>
             </div>
-          ) : !isAdmin && isFree ? (
-            <div className="p-10 text-center text-text-muted/60 flex flex-col items-center justify-center gap-3">
-              <span className="font-mono text-[10px] text-accent font-bold tracking-widest block">🔒 PAID ACCESS REQUIRED</span>
-              <p className="font-sans text-[9px] max-w-xs mx-auto leading-normal uppercase">
-                THE DIRECTORY ROSTER OF REGISTERED CHAT PROFILES IS RESTRICTED TO ACTIVE PAID TIERS.
-              </p>
-            </div>
           ) : profiles.length === 0 ? (
             <div className="p-8 text-center text-text-muted italic">
               No active registrations. Complete clearance to claim your identity slot.

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
+import confetti from 'canvas-confetti';
 import { 
   ArrowRight, Upload, Smartphone, Instagram, 
-  ChevronRight, CheckCircle2, Check, Sparkles, Eye, Crown, Users, Award,
+  ChevronRight, CheckCircle2, Check, Sparkles, Eye, EyeOff, Crown, Users, Award,
   Lock, Unlock, ShieldCheck, LogIn, LogOut, RefreshCw, Layers, TrendingUp,
   Settings, Trash2, Search, ShieldAlert, Key, Ban, UserCheck
 } from 'lucide-react';
@@ -115,6 +116,7 @@ export default function App() {
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [adminUsername, setAdminUsername] = useState('');
   const [adminPasscode, setAdminPasscode] = useState('');
+  const [showAdminPasscode, setShowAdminPasscode] = useState(false);
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [adminError, setAdminError] = useState('');
   const [adminSearch, setAdminSearch] = useState('');
@@ -130,6 +132,16 @@ export default function App() {
   const [adminPage, setAdminPage] = useState(1);
   const [adminPageSize, setAdminPageSize] = useState(50);
   const [adminSelectedProfileForDetail, setAdminSelectedProfileForDetail] = useState<Profile | null>(null);
+
+  // Sync details view when profiles update
+  useEffect(() => {
+    if (adminSelectedProfileForDetail) {
+      const updated = profiles.find(p => p.instagram.toLowerCase() === adminSelectedProfileForDetail.instagram.toLowerCase());
+      if (updated) {
+        setAdminSelectedProfileForDetail(updated);
+      }
+    }
+  }, [profiles]);
   
   // Personal sub-revenue dashboards states
   const [selectedFounder, setSelectedFounder] = useState<'jiji' | 'nedupla' | 'anandita' | 'gephs' | null>(null);
@@ -151,8 +163,48 @@ export default function App() {
     }
   }, [adminUsername]);
 
+  useEffect(() => {
+    if (step === 'confirm') {
+      // Primary burst
+      confetti({
+        particleCount: 120,
+        spread: 80,
+        origin: { y: 0.65 },
+        colors: ['#00F0FF', '#33F3FF', '#ffffff', '#0099ff', '#8B8695']
+      });
+
+      // Side cannons
+      const end = Date.now() + 2 * 1000;
+      const interval = setInterval(() => {
+        if (Date.now() > end) {
+          return clearInterval(interval);
+        }
+        confetti({
+          particleCount: 30,
+          angle: 60,
+          spread: 55,
+          origin: { x: 0, y: 0.8 },
+          colors: ['#00F0FF', '#ffffff', '#0099ff']
+        });
+        confetti({
+          particleCount: 30,
+          angle: 120,
+          spread: 55,
+          origin: { x: 1, y: 0.8 },
+          colors: ['#00F0FF', '#ffffff', '#0099ff']
+        });
+      }, 350);
+
+      return () => clearInterval(interval);
+    }
+  }, [step]);
+
   const [isSelfDeleteOpen, setIsSelfDeleteOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [showUserPin, setShowUserPin] = useState(false);
+  const [showRegPin, setShowRegPin] = useState(false);
+  const [showFounderPasscode, setShowFounderPasscode] = useState(false);
+  const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
 
   const [screenshot, setScreenshot] = useState<string | null>(null);
   const [utrNumber, setUtrNumber] = useState('');
@@ -182,7 +234,7 @@ export default function App() {
   };
 
   const fetchAdminProfiles = (tokenToUse?: string) => {
-    const token = tokenToUse || localStorage.getItem('sector_admin_token');
+    const token = tokenToUse || localStorage.getItem('sector_admin_token') || localStorage.getItem('sector_token');
     if (!token) return;
     fetch('/api/admin/profiles', {
       headers: { 'Authorization': `Bearer ${token}` }
@@ -229,7 +281,13 @@ export default function App() {
         if (res.ok) {
           const profileData = await res.json();
           setLoggedInProfile(profileData);
-          fetchDirectory(userToken);
+          if (profileData.role === 'admin') {
+            setIsAdminAuthenticated(true);
+            setAdminUsername(profileData.codmName);
+            fetchAdminProfiles(userToken);
+          } else {
+            fetchDirectory(userToken);
+          }
         } else {
           localStorage.removeItem('sector_token');
         }
@@ -406,8 +464,53 @@ export default function App() {
         }
         localStorage.setItem('sector_token', data.token);
         setLoggedInProfile(data.profile);
-        fetchDirectory(data.token);
-        setStep('confirm');
+        if (data.profile.role === 'admin') {
+          setIsAdminAuthenticated(true);
+          setAdminUsername(data.profile.codmName);
+          fetchAdminProfiles(data.token);
+        } else {
+          fetchDirectory(data.token);
+        }
+        resetForm();
+        setStep('select');
+        
+        // Trigger celebratory confetti burst immediately for the free founder/user
+        confetti({
+          particleCount: 120,
+          spread: 80,
+          origin: { y: 0.65 },
+          colors: ['#00F0FF', '#33F3FF', '#ffffff', '#0099ff', '#8B8695']
+        });
+
+        // Staggered side cannon bursts
+        const end = Date.now() + 1.5 * 1000;
+        const interval = setInterval(() => {
+          if (Date.now() > end) {
+            return clearInterval(interval);
+          }
+          confetti({
+            particleCount: 30,
+            angle: 60,
+            spread: 55,
+            origin: { x: 0, y: 0.8 },
+            colors: ['#00F0FF', '#ffffff', '#0099ff']
+          });
+          confetti({
+            particleCount: 30,
+            angle: 120,
+            spread: 55,
+            origin: { x: 1, y: 0.8 },
+            colors: ['#00F0FF', '#ffffff', '#0099ff']
+          });
+        }, 350);
+
+        // Smooth scroll to directory section showing the user list
+        setTimeout(() => {
+          const el = document.getElementById('directory-section');
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }, 400);
       })
       .catch(() => {
         alert('Network error connecting to verification servers.');
@@ -534,7 +637,13 @@ export default function App() {
       setLoginInstagram('');
       setLoginPin('');
       setIsLoginOpen(false);
-      fetchDirectory(data.token);
+      if (data.profile.role === 'admin') {
+        setIsAdminAuthenticated(true);
+        setAdminUsername(data.profile.codmName);
+        fetchAdminProfiles(data.token);
+      } else {
+        fetchDirectory(data.token);
+      }
     })
     .catch(() => {
       setLoginError('Server connectivity issue. Please try again.');
@@ -767,6 +876,10 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
     executeAdminAction('clear-warnings', instagram);
   };
 
+  const handleAdminReduceWarnings = (instagram: string) => {
+    executeAdminAction('reduce-warnings', instagram);
+  };
+
   const handleAdminResetMocks = () => {
     if (window.confirm('Reset database back to original pre-registered user list? Your current custom registrations will be overwritten.')) {
       executeAdminAction('reset-mocks');
@@ -979,7 +1092,7 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
       {/* Liquid Chrome Background Shader from React Bits */}
       <div className="fixed inset-0 -z-40 pointer-events-none opacity-[0.35] transition-opacity duration-1000">
         <LiquidChrome
-          baseColor={isTier400Active ? [0.35, 0.25, 0.1] : [0.10, 0.07, 0.18]}
+          baseColor={isTier400Active ? [0.35, 0.25, 0.1] : [0.0, 0.12, 0.18]}
           speed={0.45}
           amplitude={0.25}
           interactive={true}
@@ -1021,13 +1134,13 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
           </div>
 
           {/* Central navigation links */}
-          <nav className="flex items-center gap-6">
+          <nav className="flex items-center gap-4 sm:gap-6 overflow-x-auto whitespace-nowrap scrollbar-none max-w-[40%] sm:max-w-none shrink-0 pr-2">
             <button
               onClick={() => {
                 const el = document.getElementById('registration-section');
                 if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
               }}
-              className="font-mono text-[10px] text-text-muted hover:text-text-primary uppercase tracking-widest cursor-pointer focus:outline-none transition-colors duration-200"
+              className="font-mono text-[10px] text-text-muted hover:text-text-primary uppercase tracking-widest cursor-pointer focus:outline-none transition-colors duration-200 shrink-0"
             >
               Permit
             </button>
@@ -1036,9 +1149,19 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
                 const el = document.getElementById('directory-section');
                 if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
               }}
-              className="font-mono text-[10px] text-text-muted hover:text-text-primary uppercase tracking-widest cursor-pointer focus:outline-none transition-colors duration-200"
+              className="font-mono text-[10px] text-text-muted hover:text-text-primary uppercase tracking-widest cursor-pointer focus:outline-none transition-colors duration-200 shrink-0"
             >
               Directory
+            </button>
+            <button
+              onClick={() => {
+                setIsPrivacyOpen(true);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="font-mono text-[10px] text-accent hover:text-text-primary uppercase tracking-widest cursor-pointer focus:outline-none transition-colors duration-200 shrink-0 flex items-center gap-1"
+            >
+              <ShieldCheck className="w-3 h-3 text-accent" />
+              Privacy
             </button>
           </nav>
 
@@ -1083,6 +1206,67 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
           {/* LEFT SIDE: Brand Title, Registration Flow, and Live Receipt */}
           <div className="lg:col-span-7 space-y-12 text-left">
             
+            {/* PRIVACY POLICY & DATA USAGE COLLAPSIBLE BANNER */}
+            <div className="border border-border bg-card/60 p-4 space-y-3 text-left backdrop-blur-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <ShieldCheck className="w-4 h-4 text-accent animate-pulse" />
+                  <div className="space-y-0.5">
+                    <span className="font-mono text-[9px] text-text-muted uppercase tracking-widest block font-bold">
+                      🛡️ PRIVACY POLICY & DATA USAGE
+                    </span>
+                    <span className="font-sans text-[11px] text-text-primary uppercase font-bold tracking-tight block">
+                      Your data is safe, simple, and 100% transparent.
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsPrivacyOpen(!isPrivacyOpen)}
+                  className="inline-flex items-center justify-center gap-1.5 font-mono text-[9px] text-accent hover:text-text-primary uppercase tracking-widest border border-accent/40 px-3.5 py-1.5 bg-accent/5 hover:bg-accent/15 transition-all cursor-pointer rounded-none hover:border-accent focus:outline-none shrink-0"
+                >
+                  {isPrivacyOpen ? 'Hide Info [-]' : 'Show Info [+]'}
+                </button>
+              </div>
+
+              {isPrivacyOpen && (
+                <div className="space-y-4 font-sans text-xs text-text-muted font-light leading-relaxed border-t border-border/50 pt-3 mt-1.5">
+                  <p className="uppercase text-[10px] tracking-wide text-text-primary font-bold">
+                    We believe in keeping your data safe, simple, and transparent. We only collect the bare minimum information required to set up your account and get you into the network.
+                  </p>
+                  
+                  <p className="text-[10px] tracking-wide uppercase text-text-primary font-bold">
+                    Here is exactly what we collect and why we need it:
+                  </p>
+                  
+                  <div className="space-y-3 pl-3 border-l-2 border-accent/30 font-mono text-[10px] uppercase">
+                    <div className="space-y-1">
+                      <span className="text-text-primary font-bold block"> Custom Username:</span>
+                      <span className="text-text-muted/80 block normal-case">Collected so you can create a unique identity on the platform and be easily recognized within the network.</span>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-text-primary font-bold block"> Instagram Handle:</span>
+                      <span className="text-text-muted/80 block normal-case">Collected strictly for administrative purposes so we can manually verify your profile and add you to the official group chat.</span>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-text-primary font-bold block"> 4-Digit PIN Code:</span>
+                      <span className="text-text-muted/80 block normal-case">Collected as a secure, lightweight authentication method. This PIN is required to securely re-verify your identity if you ever need to re-login to your account.</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-bg border border-border flex items-start gap-2.5">
+                    <span className="text-sm shrink-0">🔒</span>
+                    <div className="space-y-0.5">
+                      <span className="font-mono text-[9px] text-text-primary font-bold block uppercase tracking-wider">🔒 DATA SECURITY</span>
+                      <p className="font-sans text-[10px] text-text-muted uppercase leading-relaxed font-light">
+                        Your information is securely stored and is never shared, sold, or used for advertising. It exists solely to manage your access to the network and keep the community secure.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Massive Title Block */}
             <div className="space-y-6">
               <div className="inline-flex items-center gap-3 px-3 py-1.5 bg-card border border-border font-mono text-[9px] tracking-widest text-accent uppercase">
@@ -1115,7 +1299,7 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
               <div className="relative w-full h-[140px] md:h-[180px] border border-border bg-[#0B0A0F] overflow-hidden group">
                 <div className="absolute inset-0 z-0 opacity-85 hover:opacity-100 transition-opacity duration-300">
                   <LiquidChrome
-                    baseColor={isTier400Active ? [0.65, 0.45, 0.15] : [0.21, 0.15, 0.35]}
+                    baseColor={isTier400Active ? [0.65, 0.45, 0.15] : [0.05, 0.35, 0.45]}
                     speed={1.2}
                     amplitude={0.4}
                     interactive={true}
@@ -1472,23 +1656,33 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
                           <span>Define Security PIN (4-digit number)</span>
                           <span className="text-text-muted font-bold">{formData.securityPin.length}/4</span>
                         </label>
-                        <input
-                          type="password"
-                          name="securityPin"
-                          placeholder="e.g., 1234"
-                          required
-                          maxLength={4}
-                          value={formData.securityPin}
-                          onChange={(e) => {
-                            const val = e.target.value.replace(/\D/g, '').slice(0, 4);
-                            setFormData(prev => ({ ...prev, securityPin: val }));
-                          }}
-                          className={`w-full px-4 py-3 bg-bg border rounded-none font-mono text-xs text-text-primary placeholder-text-muted/40 focus:outline-none transition-colors ${
-                            formData.securityPin && formData.securityPin.length !== 4
-                              ? 'border-status/60 focus:border-status'
-                              : 'border-border focus:border-accent'
-                          }`}
-                        />
+                        <div className="relative">
+                          <input
+                            type={showRegPin ? "text" : "password"}
+                            name="securityPin"
+                            placeholder="e.g., 1234"
+                            required
+                            maxLength={4}
+                            value={formData.securityPin}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                              setFormData(prev => ({ ...prev, securityPin: val }));
+                            }}
+                            className={`w-full pl-4 pr-12 py-3 bg-bg border rounded-none font-mono text-xs text-text-primary placeholder-text-muted/40 focus:outline-none transition-colors ${
+                              formData.securityPin && formData.securityPin.length !== 4
+                                ? 'border-status/60 focus:border-status'
+                                : 'border-border focus:border-accent'
+                            }`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowRegPin(!showRegPin)}
+                            className="absolute right-0 top-0 bottom-0 px-3 flex items-center justify-center text-text-muted hover:text-text-primary focus:outline-none border-l border-border/40 bg-card/40 transition-colors"
+                            title={showRegPin ? "Hide PIN" : "Show PIN"}
+                          >
+                            {showRegPin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
                         {formData.securityPin && formData.securityPin.length !== 4 && (
                           <span className="text-status font-bold block mt-1.5 font-mono text-[9px] uppercase animate-pulse">
                             ⚠️ PIN must be exactly 4 digits (current: {formData.securityPin.length}/4)
@@ -1668,6 +1862,14 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
                           } else {
                             handleLogout();
                           }
+                          setStep('select');
+                          resetForm();
+                          setTimeout(() => {
+                            const el = document.getElementById('directory-section');
+                            if (el) {
+                              el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
+                          }, 100);
                         }}
                         className="flex-1 px-4 py-4 border border-accent bg-card text-text-primary font-mono text-xs uppercase hover:bg-accent hover:text-bg hover:border-transparent rounded-none transition-colors cursor-pointer"
                       >
@@ -1960,7 +2162,7 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
             <Directory 
               profiles={profiles} 
               formatDirectoryNickname={formatDirectoryNickname} 
-              isAdmin={isAdminAuthenticated}
+              isAdmin={isAdminAuthenticated || loggedInProfile?.role === 'admin'}
               isLoggedIn={!!loggedInProfile || isAdminAuthenticated}
               loggedInProfile={loggedInProfile}
               onViewProfile={(profile) => {
@@ -2070,7 +2272,7 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
       {/* ADMIN OPERATIONS OVERLAY MODAL */}
         {isAdminOpen && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0B0A0F]/95 backdrop-blur-md"
+            className="fixed inset-0 z-50 overflow-y-auto bg-[#0B0A0F]/95 backdrop-blur-md p-4 flex justify-center items-start sm:items-center"
             onClick={() => {
               setIsAdminOpen(false);
               setAdminPasscode('');
@@ -2078,7 +2280,7 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
             }}
           >
             <div
-              className={`bg-card border border-border p-6 md:p-8 w-full relative space-y-5 transition-all duration-300 max-h-[95vh] overflow-y-auto ${
+              className={`bg-card border border-border p-6 md:p-8 w-full relative space-y-5 transition-all duration-300 my-4 sm:my-auto max-h-none sm:max-h-[95vh] overflow-y-visible sm:overflow-y-auto ${
                 isAdminAuthenticated ? 'max-w-4xl' : 'max-w-2xl'
               }`}
               onClick={(e) => e.stopPropagation()}
@@ -2121,19 +2323,29 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
                           {adminAttempts > 0 ? `${adminAttempts}/3 ATTEMPTS USED` : 'SECURE PORTAL'}
                         </span>
                       </label>
-                      <input
-                        type="password"
-                        placeholder={
-                          adminLockUntil && new Date(adminLockUntil).getTime() > Date.now()
-                            ? "PORTAL LOCKED - RETRY DELAY ACTIVE"
-                            : "ENTER ADMINISTRATIVE CONSOLE PASSWORD"
-                        }
-                        required
-                        disabled={!!(adminLockUntil && new Date(adminLockUntil).getTime() > Date.now())}
-                        value={adminPasscode}
-                        onChange={(e) => setAdminPasscode(e.target.value)}
-                        className="w-full px-4 py-3.5 bg-[#0B0A0F] border border-border rounded-none font-mono text-xs text-text-primary placeholder-text-muted/40 focus:outline-none focus:border-accent transition-colors disabled:opacity-55"
-                      />
+                      <div className="relative">
+                        <input
+                          type={showAdminPasscode ? "text" : "password"}
+                          placeholder={
+                            adminLockUntil && new Date(adminLockUntil).getTime() > Date.now()
+                              ? "PORTAL LOCKED - RETRY DELAY ACTIVE"
+                              : "ENTER ADMINISTRATIVE CONSOLE PASSWORD"
+                          }
+                          required
+                          disabled={!!(adminLockUntil && new Date(adminLockUntil).getTime() > Date.now())}
+                          value={adminPasscode}
+                          onChange={(e) => setAdminPasscode(e.target.value)}
+                          className="w-full pl-4 pr-12 py-3.5 bg-[#0B0A0F] border border-border rounded-none font-mono text-xs text-text-primary placeholder-text-muted/40 focus:outline-none focus:border-accent transition-colors disabled:opacity-55"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowAdminPasscode(!showAdminPasscode)}
+                          className="absolute right-0 top-0 bottom-0 px-3 flex items-center justify-center text-text-muted hover:text-text-primary focus:outline-none border-l border-border/40 bg-card/40 transition-colors"
+                          title={showAdminPasscode ? "Hide Passcode" : "Show Passcode"}
+                        >
+                          {showAdminPasscode ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
                       {adminError && (
                         <span className="text-status font-bold block mt-2 font-mono text-[9px] uppercase animate-shake">
                           ❌ {adminError}
@@ -2553,17 +2765,24 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
                   </div>
 
                   {/* Members roster spreadsheet view */}
-                  <div className="border border-border bg-bg overflow-hidden flex flex-col">
-                    <div className="grid grid-cols-12 gap-1 px-4 py-2 bg-card border-b border-border font-mono text-[8px] text-text-muted uppercase tracking-widest font-bold">
-                      <div className="col-span-3">CODM PROFILE</div>
-                      <div className="col-span-2">INSTAGRAM</div>
-                      <div className="col-span-2">SCHOOL</div>
-                      <div className="col-span-2">TIER / ROLE</div>
-                      <div className="col-span-1 text-center">STATUS</div>
-                      <div className="col-span-2 text-right">QUICK ACTIONS</div>
+                  <div className="flex flex-col space-y-1.5">
+                    <div className="flex items-center justify-between font-mono text-[8px] uppercase tracking-widest text-text-muted">
+                      <span>Roster Spreadsheet Roster</span>
+                      <span className="lg:hidden text-accent animate-pulse font-bold">↔ SWIPE HORIZONTALLY TO VIEW ALL COLUMNS</span>
                     </div>
+                    <div className="border border-border bg-bg flex flex-col overflow-hidden">
+                    <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-border [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-bg [&::-webkit-scrollbar-thumb]:bg-border">
+                      <div className="min-w-[980px]">
+                        <div className="grid grid-cols-12 gap-1 px-4 py-2 bg-card border-b border-border font-mono text-[8px] text-text-muted uppercase tracking-widest font-bold">
+                          <div className="col-span-3">CODM PROFILE</div>
+                          <div className="col-span-2">INSTAGRAM</div>
+                          <div className="col-span-2">SCHOOL</div>
+                          <div className="col-span-2">TIER / ROLE</div>
+                          <div className="col-span-1 text-center">STATUS</div>
+                          <div className="col-span-2 text-right">QUICK ACTIONS</div>
+                        </div>
 
-                    <div className="divide-y divide-border max-h-[500px] overflow-y-auto pr-1 scrollbar-thin scrollbar-track-bg scrollbar-thumb-border [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-bg [&::-webkit-scrollbar-thumb]:bg-border hover:[&::-webkit-scrollbar-thumb]:bg-accent/45">
+                        <div className="divide-y divide-border max-h-[500px] overflow-y-auto pr-1 scrollbar-thin scrollbar-track-bg scrollbar-thumb-border [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-bg [&::-webkit-scrollbar-thumb]:bg-border hover:[&::-webkit-scrollbar-thumb]:bg-accent/45">
                       {adminProfiles.length === 0 ? (
                         <div className="p-12 text-center font-mono text-[10px] text-text-muted uppercase">
                           No matching registered profiles found. Try adjusting your query parameters.
@@ -2744,8 +2963,11 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
                           );
                         })
                       )}
+                        </div>
+                      </div>
                     </div>
                   </div>
+                </div>
 
                   {/* Pagination Controls */}
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-bg border border-border border-t-0 font-mono text-[9px]">
@@ -2872,11 +3094,11 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
       {/* CUSTOM USER DETAILS MODAL */}
         {adminSelectedProfileForDetail && (
           <div
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#0B0A0F]/95 backdrop-blur-md"
+            className="fixed inset-0 z-[100] overflow-y-auto bg-[#0B0A0F]/95 backdrop-blur-md p-4 flex justify-center items-start sm:items-center"
             onClick={() => setAdminSelectedProfileForDetail(null)}
           >
             <div
-              className="bg-card border border-border p-6 md:p-8 max-w-2xl w-full relative space-y-6 text-left"
+              className="bg-card border border-border p-6 md:p-8 max-w-2xl w-full relative space-y-6 text-left my-4 sm:my-auto"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Top accent line */}
@@ -2990,50 +3212,80 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
                   </div>
 
                   {/* Quick-action buttons directly within detail drawer */}
-                  <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-[8px]">
-                    <button
-                      type="button"
-                      onClick={() => handleAdminToggleStatus(adminSelectedProfileForDetail.instagram)}
-                      className={`py-2 px-1.5 border uppercase font-bold tracking-wider text-center cursor-pointer transition-colors ${
-                        (adminSelectedProfileForDetail.status || 'active') === 'banned'
-                          ? 'border-accent/40 bg-accent/5 text-accent hover:bg-accent hover:text-bg'
-                          : 'border-status/40 bg-status/5 text-status hover:bg-status hover:text-bg'
-                      }`}
-                    >
-                      {(adminSelectedProfileForDetail.status || 'active') === 'banned' ? 'Activate / Unban Profile' : 'Ban Profile'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleAdminToggleRole(adminSelectedProfileForDetail.instagram)}
-                      className="py-2 px-1.5 border border-accent/40 bg-accent/5 text-accent hover:bg-accent hover:text-bg uppercase font-bold tracking-wider text-center cursor-pointer transition-colors"
-                    >
-                      Toggle Admin Role
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleAdminApprovePayment(adminSelectedProfileForDetail.instagram)}
-                      disabled={adminSelectedProfileForDetail.status === 'active'}
-                      className={`py-2 px-1.5 border uppercase font-bold tracking-wider text-center transition-colors ${
-                        adminSelectedProfileForDetail.status === 'active'
-                          ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-500/40 cursor-default'
-                          : 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-bg cursor-pointer'
-                      }`}
-                    >
-                      {adminSelectedProfileForDetail.status === 'active' ? '✓ Paid & Active' : 'Approve Payment / In'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (adminSelectedProfileForDetail.warnings && adminSelectedProfileForDetail.warnings >= 2) {
-                          handleAdminClearWarnings(adminSelectedProfileForDetail.instagram);
-                        } else {
-                          handleAdminWarnUser(adminSelectedProfileForDetail.instagram);
-                        }
-                      }}
-                      className="py-2 px-1.5 border border-amber-500/40 bg-amber-500/5 text-amber-500 hover:bg-amber-500 hover:text-bg uppercase font-bold tracking-wider text-center cursor-pointer transition-colors"
-                    >
-                      {adminSelectedProfileForDetail.warnings && adminSelectedProfileForDetail.warnings >= 2 ? 'Clear Warnings' : `Warn User (${adminSelectedProfileForDetail.warnings || 0}/2)`}
-                    </button>
+                  <div className="space-y-2">
+                    <span className="font-mono text-[8px] text-text-muted uppercase tracking-widest font-bold block">
+                      ADMIN COMMAND INTERACTION CONSOLE:
+                    </span>
+                    <div className="max-h-[170px] overflow-y-auto pr-1 border border-border/40 bg-bg/50 p-2 space-y-2 scrollbar-thin scrollbar-thumb-border">
+                      <div className="grid grid-cols-2 gap-2 font-mono text-[8px]">
+                        <button
+                          type="button"
+                          onClick={() => handleAdminToggleStatus(adminSelectedProfileForDetail.instagram)}
+                          className={`py-2.5 px-2 border uppercase font-bold tracking-wider text-center cursor-pointer transition-colors ${
+                            (adminSelectedProfileForDetail.status || 'active') === 'banned'
+                              ? 'border-accent bg-accent/10 text-accent hover:bg-accent hover:text-bg'
+                              : 'border-status/40 bg-status/5 text-status hover:bg-status hover:text-bg'
+                          }`}
+                        >
+                          {(adminSelectedProfileForDetail.status || 'active') === 'banned' ? '🔓 Activate / Unban' : '🚫 Ban Profile'}
+                        </button>
+                        
+                        <button
+                          type="button"
+                          onClick={() => handleAdminToggleRole(adminSelectedProfileForDetail.instagram)}
+                          className="py-2.5 px-2 border border-border bg-card text-text-primary hover:border-accent hover:text-accent uppercase font-bold tracking-wider text-center cursor-pointer transition-colors"
+                        >
+                          ⚙️ Toggle Role
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleAdminApprovePayment(adminSelectedProfileForDetail.instagram)}
+                          disabled={adminSelectedProfileForDetail.status === 'active'}
+                          className={`py-2.5 px-2 border uppercase font-bold tracking-wider text-center transition-colors col-span-2 ${
+                            adminSelectedProfileForDetail.status === 'active'
+                              ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-500/40 cursor-default'
+                              : 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-bg cursor-pointer'
+                          }`}
+                        >
+                          {adminSelectedProfileForDetail.status === 'active' ? '✓ Paid & Authorized' : '💵 Verify Payment / Approve'}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleAdminWarnUser(adminSelectedProfileForDetail.instagram)}
+                          className="py-2.5 px-2 border border-amber-500/40 bg-amber-500/5 text-amber-500 hover:bg-amber-500 hover:text-bg uppercase font-bold tracking-wider text-center cursor-pointer transition-colors"
+                        >
+                          ⚠️ Warn User ({adminSelectedProfileForDetail.warnings || 0}/3)
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleAdminReduceWarnings(adminSelectedProfileForDetail.instagram)}
+                          disabled={!adminSelectedProfileForDetail.warnings}
+                          className={`py-2.5 px-2 border uppercase font-bold tracking-wider text-center transition-colors ${
+                            !adminSelectedProfileForDetail.warnings
+                              ? 'border-border/35 text-text-muted/30 cursor-not-allowed bg-transparent'
+                              : 'border-indigo-500/40 bg-indigo-500/5 text-indigo-400 hover:bg-indigo-500 hover:text-bg cursor-pointer'
+                          }`}
+                        >
+                          🤝 Reduce Warnings
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleAdminClearWarnings(adminSelectedProfileForDetail.instagram)}
+                          disabled={!adminSelectedProfileForDetail.warnings}
+                          className={`py-2.5 px-2 border col-span-2 uppercase font-bold tracking-wider text-center transition-colors ${
+                            !adminSelectedProfileForDetail.warnings
+                              ? 'border-border/35 text-text-muted/30 cursor-not-allowed bg-transparent'
+                              : 'border-emerald-500/40 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500 hover:text-bg cursor-pointer'
+                          }`}
+                        >
+                          🔄 Clear All Warning Counts
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -3054,7 +3306,7 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
       {/* PERSONAL SUB-REVENUE DASHBOARD MODAL */}
         {selectedFounder && (
           <div
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#0B0A0F]/95 backdrop-blur-md"
+            className="fixed inset-0 z-[100] overflow-y-auto bg-[#0B0A0F]/95 backdrop-blur-md p-4 flex justify-center items-start sm:items-center"
             onClick={() => {
               setSelectedFounder(null);
               setFounderPasscodeInput('');
@@ -3062,7 +3314,7 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
             }}
           >
             <div
-              className="bg-card border border-border p-6 md:p-8 max-w-lg w-full relative space-y-6 text-left font-mono"
+              className="bg-card border border-border p-6 md:p-8 max-w-lg w-full relative space-y-6 text-left font-mono my-4 sm:my-auto"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Top accent line */}
@@ -3121,17 +3373,27 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
                       <label className="text-[8px] text-text-muted uppercase tracking-wider font-bold block">
                         ENTER PRIVATE PASSCODE FOR {selectedFounder === 'gephs' ? 'GEPH' : selectedFounder.toUpperCase()}:
                       </label>
-                      <input
-                        type="password"
-                        required
-                        value={founderPasscodeInput}
-                        onChange={(e) => {
-                          setFounderPasscodeInput(e.target.value);
-                          setFounderPasscodeError('');
-                        }}
-                        placeholder="••••••••"
-                        className="w-full bg-bg border border-border text-text-primary font-mono text-xs py-2 px-3 focus:outline-none focus:border-accent uppercase tracking-widest"
-                      />
+                      <div className="relative">
+                        <input
+                          type={showFounderPasscode ? "text" : "password"}
+                          required
+                          value={founderPasscodeInput}
+                          onChange={(e) => {
+                            setFounderPasscodeInput(e.target.value);
+                            setFounderPasscodeError('');
+                          }}
+                          placeholder="••••••••"
+                          className="w-full bg-bg border border-border text-text-primary font-mono text-xs py-2 pl-3 pr-12 focus:outline-none focus:border-accent uppercase tracking-widest"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowFounderPasscode(!showFounderPasscode)}
+                          className="absolute right-0 top-0 bottom-0 px-3 flex items-center justify-center text-text-muted hover:text-text-primary focus:outline-none border-l border-border/40 bg-card/40 transition-colors"
+                          title={showFounderPasscode ? "Hide Passcode" : "Show Passcode"}
+                        >
+                          {showFounderPasscode ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
                     </div>
 
                     {founderPasscodeError && (
@@ -3142,7 +3404,7 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
 
                     <button
                       type="submit"
-                      className="w-full py-2 bg-accent hover:bg-[#D9FF33] text-[#0B0A0F] font-bold uppercase tracking-widest text-[9px] transition-colors cursor-pointer"
+                      className="w-full py-2 bg-accent hover:bg-[#33F3FF] text-[#0B0A0F] font-bold uppercase tracking-widest text-[9px] transition-colors cursor-pointer"
                     >
                       [ DECRYPT & AUTHORIZE ACCESS ]
                     </button>
@@ -3264,11 +3526,11 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
       {/* CUSTOM ADMIN PROFILE DELETE CONFIRMATION MODAL */}
         {adminProfileToDelete && (
           <div
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#0B0A0F]/95 backdrop-blur-md"
+            className="fixed inset-0 z-[100] overflow-y-auto bg-[#0B0A0F]/95 backdrop-blur-md p-4 flex justify-center items-start sm:items-center"
             onClick={() => setAdminProfileToDelete(null)}
           >
             <div
-              className="bg-card border border-status/40 p-6 md:p-8 max-w-md w-full relative space-y-6 text-left"
+              className="bg-card border border-status/40 p-6 md:p-8 max-w-md w-full relative space-y-6 text-left my-4 sm:my-auto"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Top accent line */}
@@ -3330,11 +3592,11 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
       {/* CUSTOM USER SELF DELETE CONFIRMATION MODAL */}
         {isSelfDeleteOpen && loggedInProfile && (
           <div
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#0B0A0F]/95 backdrop-blur-md"
+            className="fixed inset-0 z-[100] overflow-y-auto bg-[#0B0A0F]/95 backdrop-blur-md p-4 flex justify-center items-start sm:items-center"
             onClick={() => setIsSelfDeleteOpen(false)}
           >
             <div
-              className="bg-card border border-status/45 p-6 md:p-8 max-w-md w-full relative space-y-6 text-left"
+              className="bg-card border border-status/45 p-6 md:p-8 max-w-md w-full relative space-y-6 text-left my-4 sm:my-auto"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Top accent line */}
@@ -3392,11 +3654,11 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
       {/* ACCESS HUB MODAL OVERLAY */}
         {isLoginOpen && (
           <div
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#0B0A0F]/95 backdrop-blur-md"
+            className="fixed inset-0 z-[100] overflow-y-auto bg-[#0B0A0F]/95 backdrop-blur-md p-4 flex justify-center items-start sm:items-center"
             onClick={() => setIsLoginOpen(false)}
           >
             <div
-              className="bg-card border border-border p-6 md:p-8 max-w-md w-full relative space-y-6 text-left"
+              className="bg-card border border-border p-6 md:p-8 max-w-md w-full relative space-y-6 text-left my-4 sm:my-auto"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Top border highlight decoration */}
@@ -3454,15 +3716,25 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
                       <span>Security PIN</span>
                       <span className="text-text-muted font-bold">{loginPin.length}/4</span>
                     </label>
-                    <input
-                      type="password"
-                      placeholder="e.g., 1234"
-                      required
-                      maxLength={4}
-                      value={loginPin}
-                      onChange={(e) => setLoginPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                      className="w-full px-4 py-3 bg-bg border border-border rounded-none font-mono text-xs text-text-primary placeholder-text-muted/40 focus:outline-none focus:border-accent transition-colors"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showUserPin ? "text" : "password"}
+                        placeholder="e.g., 1234"
+                        required
+                        maxLength={4}
+                        value={loginPin}
+                        onChange={(e) => setLoginPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                        className="w-full pl-4 pr-12 py-3 bg-bg border border-border rounded-none font-mono text-xs text-text-primary placeholder-text-muted/40 focus:outline-none focus:border-accent transition-colors"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowUserPin(!showUserPin)}
+                        className="absolute right-0 top-0 bottom-0 px-3 flex items-center justify-center text-text-muted hover:text-text-primary focus:outline-none border-l border-border/40 bg-card/40 transition-colors"
+                        title={showUserPin ? "Hide PIN" : "Show PIN"}
+                      >
+                        {showUserPin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
                     <p className="font-sans text-text-muted/60 text-[9px] mt-1.5 leading-normal uppercase">
                       Enter the exactly 4-digit secret pin created during registration. PIN matches are securely verified.
                     </p>
