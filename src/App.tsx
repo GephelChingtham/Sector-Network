@@ -90,7 +90,8 @@ export default function App() {
     instagram: '',
     codmName: '',
     securityPin: '',
-    school: ''
+    school: '',
+    admissionNumber: ''
   });
   
   // Registered profiles loaded from local storage
@@ -108,6 +109,8 @@ export default function App() {
   const [loginInstagram, setLoginInstagram] = useState('');
   const [loginPin, setLoginPin] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [loginRequiresAdmissionNumber, setLoginRequiresAdmissionNumber] = useState(false);
+  const [loginAdmissionNumber, setLoginAdmissionNumber] = useState('');
 
   // Lockout states: map of lowecased instagram handle to { attempts: number, lockUntil: string | null }
   const [lockouts, setLockouts] = useState<Record<string, { attempts: number, lockUntil: string | null }>>({});
@@ -355,6 +358,17 @@ export default function App() {
       alert('Please select your school (TNA or GD Goenka) to continue.');
       return;
     }
+    if (formData.school === 'GD Goenka' && formData.admissionNumber) {
+      if (!/^\d{9}$/.test(formData.admissionNumber)) {
+        alert('GD Goenka Admission Number must be exactly 9 digits (e.g., 202510415).');
+        return;
+      }
+      const year = parseInt(formData.admissionNumber.substring(0, 4), 10);
+      if (year < 2015) {
+        alert('GD Goenka Admission Number is invalid. The starting year part must not be below 2015.');
+        return;
+      }
+    }
     const formattedInsta = formData.instagram.startsWith('@') ? formData.instagram : `@${formData.instagram}`;
 
     fetch('/api/register', {
@@ -365,7 +379,8 @@ export default function App() {
         codmName: formData.codmName,
         securityPin: formData.securityPin,
         school: formData.school,
-        tierId: selectedTierId
+        tierId: selectedTierId,
+        admissionNumber: formData.school === 'GD Goenka' ? formData.admissionNumber : undefined
       })
     })
     .then(async res => {
@@ -421,6 +436,17 @@ export default function App() {
       alert('Please select your school (TNA or GD Goenka) to continue.');
       return;
     }
+    if (formData.school === 'GD Goenka' && formData.admissionNumber) {
+      if (!/^\d{9}$/.test(formData.admissionNumber)) {
+        alert('GD Goenka Admission Number must be exactly 9 digits (e.g., 202510415).');
+        return;
+      }
+      const year = parseInt(formData.admissionNumber.substring(0, 4), 10);
+      if (year < 2015) {
+        alert('GD Goenka Admission Number is invalid. The starting year part must not be below 2015.');
+        return;
+      }
+    }
 
     const formattedInsta = formData.instagram.startsWith('@') ? formData.instagram : `@${formData.instagram}`;
     const isExisting = profiles.some(p => p.instagram.toLowerCase() === formattedInsta.toLowerCase());
@@ -453,7 +479,8 @@ export default function App() {
           codmName: formData.codmName,
           securityPin: formData.securityPin,
           school: formData.school,
-          tierId: selectedTierId
+          tierId: selectedTierId,
+          admissionNumber: formData.school === 'GD Goenka' ? formData.admissionNumber : undefined
         })
       })
       .then(async res => {
@@ -580,6 +607,17 @@ export default function App() {
       alert('Please select your school (TNA or GD Goenka) to continue.');
       return;
     }
+    if (formData.school === 'GD Goenka' && formData.admissionNumber) {
+      if (!/^\d{9}$/.test(formData.admissionNumber)) {
+        alert('GD Goenka Admission Number must be exactly 9 digits (e.g., 202510415).');
+        return;
+      }
+      const year = parseInt(formData.admissionNumber.substring(0, 4), 10);
+      if (year < 2015) {
+        alert('GD Goenka Admission Number is invalid. The starting year part must not be below 2015.');
+        return;
+      }
+    }
 
     const formattedInsta = formData.instagram.startsWith('@') ? formData.instagram : `@${formData.instagram}`;
 
@@ -594,7 +632,8 @@ export default function App() {
         school: formData.school,
         tierId: selectedTierId,
         utrNumber: utrNumber ? utrNumber.trim() : undefined,
-        screenshot: screenshot || undefined
+        screenshot: screenshot || undefined,
+        admissionNumber: formData.school === 'GD Goenka' ? formData.admissionNumber : undefined
       })
     })
     .then(async res => {
@@ -614,6 +653,15 @@ export default function App() {
     });
   };
 
+  const closeLoginModal = () => {
+    setIsLoginOpen(false);
+    setLoginInstagram('');
+    setLoginPin('');
+    setLoginAdmissionNumber('');
+    setLoginRequiresAdmissionNumber(false);
+    setLoginError('');
+  };
+
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
@@ -624,11 +672,18 @@ export default function App() {
     fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ instagram: loginInstagram, pin: loginPin })
+      body: JSON.stringify({
+        instagram: loginInstagram,
+        pin: loginPin,
+        admissionNumber: loginAdmissionNumber ? loginAdmissionNumber.trim() : undefined
+      })
     })
     .then(async res => {
       const data = await res.json();
       if (!res.ok) {
+        if (data.requiresAdmissionNumber) {
+          setLoginRequiresAdmissionNumber(true);
+        }
         setLoginError(data.error || 'Authentication failed.');
         return;
       }
@@ -636,6 +691,8 @@ export default function App() {
       setLoggedInProfile(data.profile);
       setLoginInstagram('');
       setLoginPin('');
+      setLoginAdmissionNumber('');
+      setLoginRequiresAdmissionNumber(false);
       setIsLoginOpen(false);
       if (data.profile.role === 'admin') {
         setIsAdminAuthenticated(true);
@@ -688,7 +745,7 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
 
   const resetForm = () => {
     setStep('select');
-    setFormData({ instagram: '', codmName: '', securityPin: '', school: '' });
+    setFormData({ instagram: '', codmName: '', securityPin: '', school: '', admissionNumber: '' });
     setScreenshot(null);
     setUtrNumber('');
   };
@@ -1649,6 +1706,30 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
                           You must select your school affiliation to proceed with the clearance launch.
                         </p>
                       </div>
+
+                      {/* Admission Number Field (GD Goenka Only) */}
+                      {formData.school === 'GD Goenka' && (
+                        <div className="space-y-1.5">
+                          <label className="block font-mono text-[9px] text-text-muted uppercase tracking-widest flex justify-between">
+                            <span>GD Goenka Admission Number</span>
+                            <span className="text-text-muted/60 font-bold">OPTIONAL</span>
+                          </label>
+                          <input
+                            type="text"
+                            name="admissionNumber"
+                            placeholder="e.g., 202510415"
+                            value={formData.admissionNumber}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, '');
+                              setFormData(prev => ({ ...prev, admissionNumber: val }));
+                            }}
+                            className="w-full px-4 py-3 bg-bg border border-border focus:border-accent rounded-none font-mono text-xs text-text-primary placeholder-text-muted/40 focus:outline-none transition-colors"
+                          />
+                          <p className="font-sans text-text-muted/60 text-[9px] leading-normal uppercase">
+                            Optional secondary verification layer (exactly 9 digits starting with year 2015 or later). Enter to enable extra login protection.
+                          </p>
+                        </div>
+                      )}
 
                       {/* Security PIN Field */}
                       <div>
@@ -3138,6 +3219,12 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
                       <span className="text-text-muted">SCHOOL:</span>
                       <span className="text-text-primary font-bold uppercase">{adminSelectedProfileForDetail.school || 'NOT SPECIFIED'}</span>
                     </div>
+                    {adminSelectedProfileForDetail.admissionNumber && (
+                      <div className="flex justify-between border-b border-border pb-1.5">
+                        <span className="text-text-muted">ADMISSION NO:</span>
+                        <span className="text-accent font-bold">•••••••••</span>
+                      </div>
+                    )}
                     <div className="flex justify-between border-b border-border pb-1.5">
                       <span className="text-text-muted">TIER ASSIGNED:</span>
                       <span className="text-text-primary font-bold uppercase">
@@ -3655,7 +3742,7 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
         {isLoginOpen && (
           <div
             className="fixed inset-0 z-[100] overflow-y-auto bg-[#0B0A0F]/95 backdrop-blur-md p-4 flex justify-center items-start sm:items-center"
-            onClick={() => setIsLoginOpen(false)}
+            onClick={closeLoginModal}
           >
             <div
               className="bg-card border border-border p-6 md:p-8 max-w-md w-full relative space-y-6 text-left my-4 sm:my-auto"
@@ -3671,7 +3758,7 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
                 </span>
                 <button
                   type="button"
-                  onClick={() => setIsLoginOpen(false)}
+                  onClick={closeLoginModal}
                   className="font-mono text-[9px] text-text-muted hover:text-text-primary uppercase transition-colors cursor-pointer border border-border px-2 py-1 bg-bg hover:border-accent"
                 >
                   [ CLOSE ]
@@ -3739,6 +3826,26 @@ Transaction reference: ${isFreeUser(formData.instagram) ? 'FREE PROMOTIONAL PASS
                       Enter the exactly 4-digit secret pin created during registration. PIN matches are securely verified.
                     </p>
                   </div>
+
+                  {/* Admission Number (For GD Goenka extra security) */}
+                  {loginRequiresAdmissionNumber && (
+                    <div className="space-y-1.5 border-t border-border/40 pt-4">
+                      <label className="block font-mono text-[9px] text-accent font-bold uppercase tracking-widest mb-1">
+                        🔒 GD Goenka Admission Number Required
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g., 202510415"
+                        required
+                        value={loginAdmissionNumber}
+                        onChange={(e) => setLoginAdmissionNumber(e.target.value.replace(/\D/g, ''))}
+                        className="w-full px-4 py-3 bg-bg border border-accent/60 rounded-none font-mono text-xs text-text-primary placeholder-text-muted/40 focus:outline-none focus:border-accent transition-colors"
+                      />
+                      <p className="font-sans text-[9px] text-text-muted/60 leading-normal uppercase">
+                        Your account requires this secondary security layer. Please enter your registered admission number to complete verification.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-4 border-t border-border space-y-4">

@@ -6,6 +6,7 @@ export interface ApplicationForm {
   codmName: string;
   securityPin: string;
   school: 'TNA' | 'GD Goenka' | '';
+  admissionNumber: string;
 }
 
 export interface Profile {
@@ -22,6 +23,7 @@ export interface Profile {
   warnings?: number;
   recentActivity?: { action: string; timestamp: string }[];
   utrNumber?: string;
+  admissionNumber?: string;
 }
 
 export interface Tier {

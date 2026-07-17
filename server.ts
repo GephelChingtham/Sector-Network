@@ -14,6 +14,7 @@ interface Profile {
   securityPin: string;
   saleRemoved?: boolean;
   school?: 'TNA' | 'GD Goenka';
+  admissionNumber?: string;
   role?: 'admin' | 'user';
   status?: 'active' | 'banned' | 'pending';
   warnings?: number;
@@ -236,7 +237,7 @@ async function startServer() {
 
   // Auth: Login
   app.post("/api/auth/login", (req, res) => {
-    const { instagram, pin } = req.body;
+    const { instagram, pin, admissionNumber } = req.body;
     if (!instagram || !pin) {
       return res.status(400).json({ error: "Instagram handle and security PIN are required." });
     }
@@ -274,6 +275,19 @@ async function startServer() {
     }
 
     if (isMatch) {
+      // Extra security check: GD Goenka users must provide their admission number
+      if (profile.school === 'GD Goenka' && profile.admissionNumber) {
+        if (!admissionNumber) {
+          return res.status(400).json({
+            error: "GD Goenka users must provide their Admission Number for extra security.",
+            requiresAdmissionNumber: true
+          });
+        }
+        if (profile.admissionNumber.trim() !== admissionNumber.trim()) {
+          return res.status(401).json({ error: "Incorrect Admission Number. Access Denied." });
+        }
+      }
+
       // Clear failure record
       loginFailures.delete(normalized);
 
@@ -320,10 +334,20 @@ async function startServer() {
 
   // Register
   app.post("/api/register", (req, res) => {
-    const { instagram, codmName, securityPin, school, tierId, utrNumber, screenshot } = req.body;
+    const { instagram, codmName, securityPin, school, tierId, utrNumber, screenshot, admissionNumber } = req.body;
 
     if (!instagram || !codmName || !securityPin || !school || !tierId) {
       return res.status(400).json({ error: "Missing required registration parameters." });
+    }
+
+    if (school === 'GD Goenka' && admissionNumber) {
+      if (!/^\d{9}$/.test(admissionNumber)) {
+        return res.status(400).json({ error: "GD Goenka Admission Number must be exactly 9 digits (e.g., 202510415)." });
+      }
+      const year = parseInt(admissionNumber.substring(0, 4), 10);
+      if (year < 2015) {
+        return res.status(400).json({ error: "GD Goenka Admission Number starting year cannot be below 2015." });
+      }
     }
 
     const normalizedInsta = (instagram.trim().startsWith('@') ? instagram.trim() : `@${instagram.trim()}`);
@@ -377,6 +401,7 @@ async function startServer() {
       profileViews: tierId === 'tier300' || tierId === 'tier400' ? Math.floor(Math.random() * 20) + 5 : 0,
       securityPin: hashedPin,
       school,
+      admissionNumber: school === 'GD Goenka' ? admissionNumber : undefined,
       role: isFree ? 'admin' : 'user',
       status: isFree ? 'active' : 'pending',
       utrNumber: utrNumber ? utrNumber.trim() : undefined,
