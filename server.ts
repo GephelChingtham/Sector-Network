@@ -114,6 +114,7 @@ function loadDB(): Profile[] {
       school: 'GD Goenka',
       role: 'admin',
       status: 'active',
+      admissionNumber: '202510123',
       recentActivity: [
         { action: 'Founder profile activated with Free Tier 4 privileges', timestamp: '2026-07-15T00:00:00Z' }
       ]
@@ -128,6 +129,7 @@ function loadDB(): Profile[] {
       school: 'GD Goenka',
       role: 'admin',
       status: 'active',
+      admissionNumber: '202420456',
       recentActivity: [
         { action: 'Founder profile activated with Free Tier 4 privileges', timestamp: '2026-07-15T00:00:00Z' }
       ]
@@ -142,6 +144,7 @@ function loadDB(): Profile[] {
       school: 'GD Goenka',
       role: 'user',
       status: 'active',
+      admissionNumber: '202530789',
       recentActivity: [
         { action: 'Viewed community leaderboard', timestamp: '2026-07-12T22:45:00Z' },
         { action: 'Updated security PIN code', timestamp: '2026-07-11T15:10:00Z' },
@@ -173,6 +176,7 @@ function loadDB(): Profile[] {
       school: 'GD Goenka',
       role: 'user',
       status: 'active',
+      admissionNumber: '202640112',
       recentActivity: [
         { action: 'Created member directory profile', timestamp: '2026-07-12T16:40:00Z' }
       ]
@@ -184,8 +188,37 @@ function loadDB(): Profile[] {
   }
 
   const finalFiltered = db.filter(p => !deletedList.includes(p.instagram.toLowerCase()));
-  if (finalFiltered.length !== db.length) {
-    saveDB(finalFiltered);
+  
+  // Automigration for GD Goenka profiles missing conforming admission numbers
+  let dbChanged = false;
+  const migrated = finalFiltered.map((p, idx) => {
+    if (p.school === 'GD Goenka') {
+      const isValid = p.admissionNumber && 
+                      /^\d{9}$/.test(p.admissionNumber) && 
+                      parseInt(p.admissionNumber.substring(0, 4), 10) >= 2015;
+      if (!isValid) {
+        dbChanged = true;
+        const username = p.instagram.toLowerCase().trim().replace(/^@/, '');
+        let newAdm = '';
+        if (username === 'juino.57') newAdm = '202510123';
+        else if (username === 'nedupla._.a') newAdm = '202420456';
+        else if (username === 'codm_spectre') newAdm = '202530789';
+        else if (username === 'reaper_09') newAdm = '202640112';
+        else {
+          // Generate a deterministic 9-digit number starting with 2025
+          const pad = String(10000 + (idx % 80000)).substring(1); // 4 digits
+          newAdm = `2025${pad}15`; // 4 + 4 + 1 = 9 digits
+        }
+        return { ...p, admissionNumber: newAdm };
+      }
+    }
+    return p;
+  });
+
+  if (finalFiltered.length !== db.length || dbChanged) {
+    saveDB(migrated);
+    db = migrated;
+  } else {
     db = finalFiltered;
   }
   return db;
