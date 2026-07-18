@@ -4,6 +4,9 @@ import fs from "fs";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { createServer as createViteServer } from "vite";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 interface Profile {
   instagram: string;
